@@ -656,8 +656,9 @@ if totals is not None and not totals.empty:
             st.metric(
                 "🇬🇧 London Vaults",
                 f"{lbma_val / 1_000_000:.1f}M oz",
-                help="LBMA London Vault Silver Holdings (Monthly)",
+                help="Total physical silver in London vaults. NOT COMEX inventory. ~65% is owned by ETFs (like SLV) and not available.",
             )
+
         
         # 2. Physical Premium
         premium_val = fetch_physical_premium(st.session_state.get('spot_price'))
@@ -711,6 +712,7 @@ if totals is not None and not totals.empty:
             This ratio measures the leverage of the paper futures market against the actual physical silver available for delivery.
             
             *   **Formula:** `(Open Interest × 5,000 oz) ÷ Registered Inventory`
+            *   **Constant (5,000):** Each COMEX #SI (Silver) futures contract represents exactly 5,000 troy ounces.
             *   **What it means:** It compares the volume of paper claims to the actual pile of available metal.
             *   **Interpretation:**
                 *   🟢 **< 10x (Low):** Generally considered normal commercial hedging activity.
