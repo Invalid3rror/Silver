@@ -221,15 +221,20 @@ if totals is not None and not totals.empty:
 
     # 3. Full Data Table
     st.subheader("🏢 Warehouse Breakdown")
-    # Clean column names for display
+    # Clean column names for display and reset index to avoid MultiIndex issues
     full_data.columns = [str(c).replace("\n", " ") for c in full_data.columns]
+    full_data = full_data.reset_index(drop=True)
     
-    # Apply styling only to numeric columns to avoid errors
-    numeric_cols = full_data.select_dtypes(include=['number']).columns
-    styled = full_data.style
-    if len(numeric_cols) > 0:
-        styled = styled.highlight_max(axis=0, subset=numeric_cols, color="#e6f4ea")
-    st.dataframe(styled)
+    # Apply styling only to numeric columns; fall back to raw table on any error
+    try:
+        numeric_cols = full_data.select_dtypes(include=['number']).columns
+        styled = full_data.style
+        if len(numeric_cols) > 0:
+            styled = styled.highlight_max(axis=0, subset=numeric_cols, color="#e6f4ea")
+        st.dataframe(styled)
+    except Exception as e:
+        st.warning(f"Table styling disabled due to: {e}")
+        st.dataframe(full_data)
 
 else:
     st.warning(
