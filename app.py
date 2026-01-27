@@ -705,24 +705,37 @@ if totals is not None and not totals.empty:
         
         m_col1, m_col2, m_col3, m_col4 = st.columns(4)
         
-        # 1. LBMA Vaults
-        lbma_val = st.session_state.get('lbma_holdings', 836_900_000)
-        with m_col1:
-            st.metric(
-                "🇬🇧 London Vaults",
-                f"{lbma_val / 1_000_000:.1f}M oz",
-                help="Total physical silver in London vaults. NOT COMEX inventory. ~65% is owned by ETFs (like SLV) and not available.",
-            )
+        # 1. SGE Benchmark
+        sge_usd = st.session_state.get('sge_price_usd')
+        sge_rmb = st.session_state.get('sge_price_rmb')
+        spot = st.session_state.get('spot_price')
+
+        if sge_usd:
+            with m_col1:
+                st.metric(
+                    "🇨🇳 SGE Benchmark",
+                    f"${sge_usd:.2f}/oz",
+                    help=f"Shanghai Gold Exchange Silver Benchmark (SHAG). Approx {sge_rmb} RMB/kg.",
+                )
+        else:
+            with m_col1:
+                st.metric("🇨🇳 SGE Benchmark", "Loading...", help="Fetching data from SGE...")
 
         
-        # 2. Physical Premium
-        premium_val = fetch_physical_premium(st.session_state.get('spot_price'))
-        with m_col2:
-             st.metric(
-                "🪙 Physical Premium",
-                f"${premium_val:.2f}",
-                help="Est. Retail Premium over Spot (Silver Eagle/Generic)",
-            )
+        # 2. SGE Premium
+        if spot and sge_usd:
+            diff = sge_usd - spot
+            pct = (diff / spot) * 100
+            with m_col2:
+                st.metric(
+                    "🇨🇳 vs 🇺🇸 Arbitrage",
+                    f"${diff:+.2f}",
+                    delta=f"{pct:+.1f}%",
+                    help="Price difference between Shanghai (SGE) and Global Spot. Positive = SGE is more expensive.",
+                )
+        else:
+             with m_col2:
+                 st.metric("🇨🇳 vs 🇺🇸 Arbitrage", "N/A")
              
         # 3. Open Interest
         oi_val = st.session_state.get('open_interest')
@@ -756,37 +769,15 @@ if totals is not None and not totals.empty:
                     delta_color="off",
                     help=help_text,
                 )
+        if 'global_price' in st.session_state:
+             st.metric(
+                "🇬🇧 London Vaults (Approx)",
+                 f"{st.session_state.get('lbma_holdings', 836_900_000) / 1_000_000:.1f}M oz",
+                 help="Total physical silver in London vaults. ~65% is owned by ETFs (like SLV)."
+             )
         else:
-            with m_col4:
-                 st.metric("⚖️ OI / Reg Ratio", "N/A")
+             st.write("")
 
-        # --- SGE / China Section ---
-        sge_col1, sge_col2, sge_col3 = st.columns(3)
-        
-        sge_usd = st.session_state.get('sge_price_usd')
-        sge_rmb = st.session_state.get('sge_price_rmb')
-        spot = st.session_state.get('spot_price')
-        
-        if sge_usd:
-            with sge_col1:
-                st.metric(
-                    "🇨🇳 SGE Benchmark",
-                    f"${sge_usd:.2f}/oz",
-                    help=f"Shanghai Gold Exchange Silver Benchmark (SHAG). Approx {sge_rmb} RMB/kg.",
-                )
-            
-            # SGE Premium
-            if spot:
-                diff = sge_usd - spot
-                pct = (diff / spot) * 100
-                with sge_col2:
-                    st.metric(
-                        "🇨🇳 vs 🇺🇸 Arbitrage",
-                        f"${diff:+.2f} ({pct:+.1f}%)",
-                        delta="Premium" if diff > 0 else "Discount",
-                        help="Price difference between Shanghai (SGE) and Global Spot. Positive = SGE is more expensive (implying strong Chinese demand)."
-                    )
-        
         # --- Explanations Expander ---
         with st.expander("ℹ️ Metric Explanations & Formulas"):
             st.markdown("""
