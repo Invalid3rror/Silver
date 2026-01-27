@@ -118,6 +118,66 @@ if totals is not None:
             help="Private silver. Not for sale unless price rises drastically.",
         )
 
+    # 3. Squeeze Status Indicator
+    st.subheader("🚨 Short Squeeze Status")
+    
+    # Critical threshold for short squeeze (adjust as needed)
+    CRITICAL_THRESHOLD = 10_000_000  # 10 million oz = critical shortage
+    SQUEEZE_THRESHOLD = 50_000_000    # 50 million oz = squeeze conditions
+    
+    try:
+        reg_numeric = pd.to_numeric(reg_val, errors='coerce')
+        if pd.notna(reg_numeric):
+            if reg_numeric < CRITICAL_THRESHOLD:
+                status = "🔴 CRITICAL - Severe Short Squeeze Likely"
+                color = "red"
+                description = "Registered inventory is critically low. Short squeeze conditions are imminent or underway."
+            elif reg_numeric < SQUEEZE_THRESHOLD:
+                status = "🟠 HIGH ALERT - Squeeze Conditions Building"
+                color = "orange"
+                description = "Registered inventory is dangerously low. Squeeze conditions are likely to develop."
+            else:
+                status = "🟡 MODERATE - Watch Closely"
+                color = "yellow"
+                description = "Registered inventory is sufficient but being monitored."
+            
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                st.markdown(f"### {status}")
+                st.info(description)
+            with col2:
+                st.metric(
+                    "Threshold Status",
+                    f"{reg_numeric:,.0f} oz",
+                    f"vs {SQUEEZE_THRESHOLD:,.0f} oz critical"
+                )
+        else:
+            st.warning("Unable to parse registered inventory value")
+    except Exception as e:
+        st.error(f"Error calculating squeeze status: {e}")
+    
+    # Quality Lookup Reference
+    st.subheader("📚 Silver Quality Reference")
+    with st.expander("What stops the short squeeze?"):
+        st.markdown("""
+        **Low Silver Quality Conditions** (Triggers Short Squeeze):
+        - **Registered Inventory < 10M oz**: Critical shortage - shorts must cover at any price
+        - **Registered Inventory < 50M oz**: Squeeze conditions - delivery failures likely
+        - **Negative Spreads**: Futures trading below spot price (extreme scarcity)
+        
+        **What STOPS the Squeeze?**
+        1. **New Mine Supply**: Fresh silver entering warehouses increases registered inventory
+        2. **Price Spike**: Higher prices incentivize eligible (vaulted) silver to be registered
+        3. **Reduced Demand**: Less delivery requests lowers pressure on inventory
+        4. **Market Correction**: Futures prices normalize to realistic levels
+        5. **Inventory Threshold > 50M oz**: Supply pressure eases significantly
+        
+        **Current Status Summary:**
+        - 🟢 Safe: Registered > 50M oz
+        - 🟡 Caution: Registered 10M-50M oz
+        - 🔴 Critical: Registered < 10M oz
+        """)
+
     # 3. Full Data Table
     st.subheader("🏢 Warehouse Breakdown")
     # Clean column names for display
