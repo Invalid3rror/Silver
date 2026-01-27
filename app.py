@@ -60,20 +60,38 @@ def download_and_save():
 
 
 def load_data():
-    """Loads and returns (Totals Row, Full Dataframe)."""
+    """Loads and returns (Totals Row, Full Dataframe) with robust header detection."""
     if not os.path.exists(LOCAL_EXCEL):
         return None, None
     try:
-        # We skip the first 4 rows of logos/headers in CME files
-        df = pd.read_excel(LOCAL_EXCEL, header=4).dropna(how="all")
-        # Find the row that says 'TOTAL' in the first column
+        # Read raw without assuming headers; drop empty rows/cols
+        raw = pd.read_excel(LOCAL_EXCEL, header=None)
+        raw = raw.dropna(how="all")
+        raw = raw.dropna(axis=1, how="all")
+
+        # Try to locate the header row (usually contains 'DEPOSITORY' text)
+        header_idx = None
+        for idx, val in raw.iloc[:, 0].items():
+            if isinstance(val, str) and "DEPOSITORY" in val.upper():
+                header_idx = idx
+                break
+
+        # Fallback: use the first non-empty row as header
+        if header_idx is None:
+            header_idx = raw.index[0]
+
+        header = raw.loc[header_idx].fillna(method="ffill")
+        df = raw.iloc[header_idx + 1 :].copy()
+        df.columns = header
+        df = df.reset_index(drop=True)
+
+        # Find TOTAL row in first column
         totals = df[df.iloc[:, 0].astype(str).str.contains("TOTAL", case=False, na=False)]
-        
-        # Debug: Check if totals is empty
+
         if totals.empty:
             st.warning("No TOTAL row found in Excel file")
             return None, df
-        
+
         return totals, df
     except Exception as e:
         st.error(f"Excel Parse Error: {e}")
