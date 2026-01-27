@@ -28,36 +28,33 @@ def download_and_save():
 
             with open(LOCAL_EXCEL, "wb") as f:
                 f.write(resp.content)
-            return True, "Success! Data downloaded."
+
+            # Logic to record history for the chart
+            totals, _ = load_data()
+            if totals is not None:
+                # CME Column 1 is usually Registered.
+                # We convert to numeric just in case of formatting.
+                reg_val = pd.to_numeric(totals.iloc[0, 1], errors="coerce")
+                new_entry = pd.DataFrame(
+                    [[datetime.now().strftime("%Y-%m-%d"), reg_val]],
+                    columns=["Date", "Registered"],
+                )
+
+                if os.path.exists(HISTORY_FILE):
+                    hist_df = pd.read_csv(HISTORY_FILE)
+                    # Add new, remove duplicates for the same day, save back
+                    hist_df = pd.concat([hist_df, new_entry]).drop_duplicates(
+                        subset=["Date"], keep="last"
+                    )
+                    hist_df.to_csv(HISTORY_FILE, index=False)
+                else:
+                    new_entry.to_csv(HISTORY_FILE, index=False)
+                return True, "Data updated successfully!"
         except Exception as e:
             if attempt < 2:
                 time.sleep(2)  # Wait 2 seconds before retrying
                 continue
             return False, f"Download failed after 3 attempts: {e}"
-
-        # Logic to record history for the chart
-        totals, _ = load_data()
-        if totals is not None:
-            # CME Column 1 is usually Registered.
-            # We convert to numeric just in case of formatting.
-            reg_val = pd.to_numeric(totals.iloc[0, 1], errors="coerce")
-            new_entry = pd.DataFrame(
-                [[datetime.now().strftime("%Y-%m-%d"), reg_val]],
-                columns=["Date", "Registered"],
-            )
-
-            if os.path.exists(HISTORY_FILE):
-                hist_df = pd.read_csv(HISTORY_FILE)
-                # Add new, remove duplicates for the same day, save back
-                hist_df = pd.concat([hist_df, new_entry]).drop_duplicates(
-                    subset=["Date"], keep="last"
-                )
-                hist_df.to_csv(HISTORY_FILE, index=False)
-            else:
-                new_entry.to_csv(HISTORY_FILE, index=False)
-            return True, "Data updated successfully!"
-    except Exception as e:
-        return False, f"Download failed: {e}"
 
 
 def load_data():
