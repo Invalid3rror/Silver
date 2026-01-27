@@ -68,6 +68,12 @@ def load_data():
         df = pd.read_excel(LOCAL_EXCEL, header=4).dropna(how="all")
         # Find the row that says 'TOTAL' in the first column
         totals = df[df.iloc[:, 0].astype(str).str.contains("TOTAL", case=False, na=False)]
+        
+        # Debug: Check if totals is empty
+        if totals.empty:
+            st.warning("No TOTAL row found in Excel file")
+            return None, df
+        
         return totals, df
     except Exception as e:
         st.error(f"Excel Parse Error: {e}")
@@ -93,7 +99,7 @@ with st.sidebar:
 
 totals, full_data = load_data()
 
-if totals is not None:
+if totals is not None and not totals.empty:
     # 1. Historical Chart
     if os.path.exists(HISTORY_FILE):
         st.subheader("📉 Registered Inventory Over Time")
@@ -101,35 +107,48 @@ if totals is not None:
         st.line_chart(hist_data.set_index("Date"))
 
     # 2. Key Metrics
-    reg_val = totals.iloc[0, 1]
-    elig_val = totals.iloc[0, 2]
+    # Try multiple column indices to find the right data
+    try:
+        # Try column 1 and 2 first (standard CME format)
+        if totals.shape[1] > 2:
+            reg_val = totals.iloc[0, 1]
+            elig_val = totals.iloc[0, 2]
+        else:
+            # Fallback to available columns
+            st.warning(f"Unexpected data format. Found {totals.shape[1]} columns instead of 3+")
+            reg_val = None
+            elig_val = None
+    except Exception as e:
+        st.error(f"Error extracting values: {e}")
+        reg_val = None
+        elig_val = None
     
     # Convert to numeric values
-    reg_numeric = pd.to_numeric(reg_val, errors='coerce')
-    elig_numeric = pd.to_numeric(elig_val, errors='coerce')
+    reg_numeric = pd.to_numeric(reg_val, errors='coerce') if reg_val is not None else None
+    elig_numeric = pd.to_numeric(elig_val, errors='coerce') if elig_val is not None else None
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric(
-            "📦 Registered (Available)",
-            f"{reg_numeric:,.0f} oz" if pd.notna(reg_numeric) else "N/A",
-            help="Silver available for delivery. When this drops, short sellers panic.",
-        )
-    with col2:
-        st.metric(
-            "🔒 Eligible (Vaulted)",
-            f"{elig_numeric:,.0f} oz" if pd.notna(elig_numeric) else "N/A",
-            help="Private silver. Not for sale unless price rises drastically.",
-        )
+    if pd.notna(reg_numeric) and pd.notna(elig_numeric):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric(
+                "📦 Registered (Available)",
+                f"{reg_numeric:,.0f} oz",
+                help="Silver available for delivery. When this drops, short sellers panic.",
+            )
+        with col2:
+            st.metric(
+                "🔒 Eligible (Vaulted)",
+                f"{elig_numeric:,.0f} oz",
+                help="Private silver. Not for sale unless price rises drastically.",
+            )
 
-    # 3. Squeeze Status Indicator
-    st.subheader("🚨 Short Squeeze Status")
-    
-    # Critical threshold for short squeeze (adjust as needed)
-    CRITICAL_THRESHOLD = 10_000_000  # 10 million oz = critical shortage
-    SQUEEZE_THRESHOLD = 50_000_000    # 50 million oz = squeeze conditions
-    
-    if pd.notna(reg_numeric):
+        # 3. Squeeze Status Indicator
+        st.subheader("🚨 Short Squeeze Status")
+        
+        # Critical threshold for short squeeze (adjust as needed)
+        CRITICAL_THRESHOLD = 10_000_000  # 10 million oz = critical shortage
+        SQUEEZE_THRESHOLD = 50_000_000    # 50 million oz = squeeze conditions
+        
         if reg_numeric < CRITICAL_THRESHOLD:
             status = "🔴 CRITICAL - Severe Short Squeeze Likely"
             color = "red"
@@ -157,13 +176,11 @@ if totals is not None:
                 f"{reg_numeric:,.0f} oz",
                 f"vs {SQUEEZE_THRESHOLD:,.0f} oz"
             )
-    else:
-        st.error("⚠️ Unable to parse registered inventory value. Please check the data source.")
-    
-    # Quality Lookup Reference
-    st.subheader("📚 Silver Quality Reference")
-    with st.expander("What stops the short squeeze?"):
-        st.markdown("""
+        
+        # Quality Lookup Reference
+        st.subheader("📚 Silver Quality Reference")
+        with st.expander("What stops the short squeeze?"):
+            st.markdown("""
         **Low Silver Quality Conditions** (Triggers Short Squeeze):
         - **Registered Inventory < 10M oz**: Critical shortage - shorts must cover at any price
         - **Registered Inventory < 50M oz**: Squeeze conditions - delivery failures likely
@@ -181,6 +198,8 @@ if totals is not None:
         - 🟡 Caution: Registered 10M-50M oz
         - 🔴 Critical: Registered < 10M oz
         """)
+    else:
+        st.error("⚠️ Unable to parse registered inventory value. Please check the data source.")
 
     # 3. Full Data Table
     st.subheader("🏢 Warehouse Breakdown")
