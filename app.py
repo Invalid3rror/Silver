@@ -103,18 +103,22 @@ if totals is not None:
     # 2. Key Metrics
     reg_val = totals.iloc[0, 1]
     elig_val = totals.iloc[0, 2]
+    
+    # Convert to numeric values
+    reg_numeric = pd.to_numeric(reg_val, errors='coerce')
+    elig_numeric = pd.to_numeric(elig_val, errors='coerce')
 
     col1, col2 = st.columns(2)
     with col1:
         st.metric(
             "📦 Registered (Available)",
-            f"{reg_val:,.0f} oz",
+            f"{reg_numeric:,.0f} oz" if pd.notna(reg_numeric) else "N/A",
             help="Silver available for delivery. When this drops, short sellers panic.",
         )
     with col2:
         st.metric(
             "🔒 Eligible (Vaulted)",
-            f"{elig_val:,.0f} oz",
+            f"{elig_numeric:,.0f} oz" if pd.notna(elig_numeric) else "N/A",
             help="Private silver. Not for sale unless price rises drastically.",
         )
 
@@ -125,43 +129,36 @@ if totals is not None:
     CRITICAL_THRESHOLD = 10_000_000  # 10 million oz = critical shortage
     SQUEEZE_THRESHOLD = 50_000_000    # 50 million oz = squeeze conditions
     
-    try:
-        reg_numeric = pd.to_numeric(reg_val, errors='coerce')
-        if pd.notna(reg_numeric):
-            if reg_numeric < CRITICAL_THRESHOLD:
-                status = "🔴 CRITICAL - Severe Short Squeeze Likely"
-                color = "red"
-                description = "Registered inventory is critically low. Short squeeze conditions are imminent or underway."
-                price_impact = "📈 Silver Price: WILL SURGE - Shorts forced to cover at any price. Massive volatility expected."
-            elif reg_numeric < SQUEEZE_THRESHOLD:
-                status = "🟠 HIGH ALERT - Squeeze Conditions Building"
-                color = "orange"
-                description = "Registered inventory is dangerously low. Squeeze conditions are likely to develop."
-                price_impact = "📈 Silver Price: UPWARD PRESSURE - Supply crisis imminent. Expect rapid price increases."
-            else:
-                status = "🟢 SAFE - Supply Stable"
-                color = "green"
-                description = "Registered inventory is healthy. Normal market conditions."
-                price_impact = "📉 Silver Price: DOWNWARD PRESSURE - Abundant supply prevents short squeeze. Price may decline or stagnate."
-            
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                st.markdown(f"### {status}")
-                st.info(description)
-                st.warning(price_impact)
-            with col2:
-                st.markdown(f"### {status}")
-                st.info(description)
-            with col2:
-                st.metric(
-                    "Threshold Status",
-                    f"{reg_numeric:,.0f} oz",
-                    f"vs {SQUEEZE_THRESHOLD:,.0f} oz critical"
-                )
+    if pd.notna(reg_numeric):
+        if reg_numeric < CRITICAL_THRESHOLD:
+            status = "🔴 CRITICAL - Severe Short Squeeze Likely"
+            color = "red"
+            description = "Registered inventory is critically low. Short squeeze conditions are imminent or underway."
+            price_impact = "📈 Silver Price: WILL SURGE - Shorts forced to cover at any price. Massive volatility expected."
+        elif reg_numeric < SQUEEZE_THRESHOLD:
+            status = "🟠 HIGH ALERT - Squeeze Conditions Building"
+            color = "orange"
+            description = "Registered inventory is dangerously low. Squeeze conditions are likely to develop."
+            price_impact = "📈 Silver Price: UPWARD PRESSURE - Supply crisis imminent. Expect rapid price increases."
         else:
-            st.warning("Unable to parse registered inventory value")
-    except Exception as e:
-        st.error(f"Error calculating squeeze status: {e}")
+            status = "🟢 SAFE - Supply Stable"
+            color = "green"
+            description = "Registered inventory is healthy. Normal market conditions."
+            price_impact = "📉 Silver Price: DOWNWARD PRESSURE - Abundant supply prevents short squeeze. Price may decline or stagnate."
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.markdown(f"### {status}")
+            st.info(description)
+            st.warning(price_impact)
+        with col2:
+            st.metric(
+                "Threshold Status",
+                f"{reg_numeric:,.0f} oz",
+                f"vs {SQUEEZE_THRESHOLD:,.0f} oz"
+            )
+    else:
+        st.error("⚠️ Unable to parse registered inventory value. Please check the data source.")
     
     # Quality Lookup Reference
     st.subheader("📚 Silver Quality Reference")
