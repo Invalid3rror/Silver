@@ -36,10 +36,18 @@ HIGH_PREMIUM = 5.0  # Premium > $5 = physical shortage
 def fetch_open_interest():
     """Fetch COMEX Silver Open Interest using yfinance (SI=F)."""
     try:
+        # Add slight delay to avoid rate limits if running in parallel
+        time.sleep(0.5)
         ticker = yf.Ticker("SI=F")
+        # Force info fetch
         info = ticker.info
-        return info.get('openInterest')
-    except Exception:
+        oi = info.get('openInterest')
+        if oi:
+            return oi
+        # Fallback check
+        return None
+    except Exception as e:
+        print(f"⚠️ Open Interest fetch error: {e}")
         return None
 
 @st.cache_data(ttl=3600)
