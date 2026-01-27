@@ -136,25 +136,31 @@ if totals is not None and not totals.empty:
         st.line_chart(hist_data.set_index("Date"))
 
     # 2. Key Metrics
-    # Try multiple column indices to find the right data
-    try:
-        # Try column 1 and 2 first (standard CME format)
-        if totals.shape[1] > 2:
-            reg_val = totals.iloc[0, 1]
-            elig_val = totals.iloc[0, 2]
-        else:
-            # Fallback to available columns
-            st.warning(f"Unexpected data format. Found {totals.shape[1]} columns instead of 3+")
-            reg_val = None
-            elig_val = None
-    except Exception as e:
-        st.error(f"Error extracting values: {e}")
-        reg_val = None
-        elig_val = None
-    
-    # Convert to numeric values
-    reg_numeric = pd.to_numeric(reg_val, errors='coerce') if reg_val is not None else None
-    elig_numeric = pd.to_numeric(elig_val, errors='coerce') if elig_val is not None else None
+    # Dynamically locate Registered and Eligible columns; fallback to first numeric values
+    totals_row = totals.iloc[0]
+
+    def pick_value(keywords, exclude_cols=None):
+        exclude_cols = exclude_cols or set()
+        # Try keyword match
+        for col in totals_row.index:
+            if col in exclude_cols:
+                continue
+            name = str(col).lower()
+            if any(k in name for k in keywords):
+                val = pd.to_numeric(totals_row[col], errors='coerce')
+                if pd.notna(val):
+                    return val, col
+        # Fallback: first numeric column not excluded
+        for col in totals_row.index:
+            if col in exclude_cols:
+                continue
+            val = pd.to_numeric(totals_row[col], errors='coerce')
+            if pd.notna(val):
+                return val, col
+        return None, None
+
+    reg_numeric, reg_col = pick_value(["register", "reg"])
+    elig_numeric, elig_col = pick_value(["eligible", "elig"], exclude_cols={reg_col} if reg_col else None)
 
     if pd.notna(reg_numeric) and pd.notna(elig_numeric):
         col1, col2 = st.columns(2)
