@@ -162,6 +162,21 @@ if totals is not None and not totals.empty:
     reg_numeric, reg_col = pick_value(["register", "reg"])
     elig_numeric, elig_col = pick_value(["eligible", "elig"], exclude_cols={reg_col} if reg_col else None)
 
+    # Positional fallback: take first two numeric columns if keywords fail
+    if pd.isna(reg_numeric) or pd.isna(elig_numeric):
+        numeric_cols_in_order = []
+        for col in totals_row.index:
+            val = pd.to_numeric(totals_row[col], errors='coerce')
+            if pd.notna(val):
+                numeric_cols_in_order.append((col, val))
+        if len(numeric_cols_in_order) >= 2:
+            reg_col_fallback, reg_val_fallback = numeric_cols_in_order[0]
+            elig_col_fallback, elig_val_fallback = numeric_cols_in_order[1]
+            if pd.isna(reg_numeric):
+                reg_numeric, reg_col = reg_val_fallback, reg_col_fallback
+            if pd.isna(elig_numeric):
+                elig_numeric, elig_col = elig_val_fallback, elig_col_fallback
+
     if pd.notna(reg_numeric) and pd.notna(elig_numeric):
         col1, col2 = st.columns(2)
         with col1:
