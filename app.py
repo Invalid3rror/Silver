@@ -80,9 +80,20 @@ def load_data():
         if header_idx is None:
             header_idx = raw.index[0]
 
-        header = raw.loc[header_idx].fillna(method="ffill")
+        header = raw.loc[header_idx].ffill()
         df = raw.iloc[header_idx + 1 :].copy()
-        df.columns = header
+        # Deduplicate header names to avoid Arrow errors
+        deduped_cols = []
+        seen = {}
+        for col in header:
+            col_str = str(col)
+            if col_str in seen:
+                seen[col_str] += 1
+                deduped_cols.append(f"{col_str}_{seen[col_str]}")
+            else:
+                seen[col_str] = 0
+                deduped_cols.append(col_str)
+        df.columns = deduped_cols
         df = df.reset_index(drop=True)
 
         # Find TOTAL row in first column
@@ -221,8 +232,18 @@ if totals is not None and not totals.empty:
 
     # 3. Full Data Table
     st.subheader("🏢 Warehouse Breakdown")
-    # Clean column names for display and reset index to avoid MultiIndex issues
-    full_data.columns = [str(c).replace("\n", " ") for c in full_data.columns]
+    # Clean column names for display, ensure uniqueness, and reset index
+    clean_cols = []
+    seen = {}
+    for col in full_data.columns:
+        col_str = str(col).replace("\n", " ")
+        if col_str in seen:
+            seen[col_str] += 1
+            clean_cols.append(f"{col_str}_{seen[col_str]}")
+        else:
+            seen[col_str] = 0
+            clean_cols.append(col_str)
+    full_data.columns = clean_cols
     full_data = full_data.reset_index(drop=True)
     
     # Apply styling only to numeric columns; fall back to raw table on any error
