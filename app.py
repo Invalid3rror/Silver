@@ -122,7 +122,16 @@ if totals is not None:
     st.subheader("🏢 Warehouse Breakdown")
     # Clean column names for display
     full_data.columns = [str(c).replace("\n", " ") for c in full_data.columns]
-    st.dataframe(full_data.style.highlight_max(axis=0, color="#e6f4ea"))
+    
+    # Apply styling only to numeric columns to avoid errors
+    def highlight_numeric_max(s):
+        """Highlight max value only for numeric columns."""
+        if s.dtype in ['float64', 'int64', 'float32', 'int32']:
+            is_max = s == s.max()
+            return ['background-color: #e6f4ea' if v else '' for v in is_max]
+        return [''] * len(s)
+    
+    st.dataframe(full_data.style.apply(highlight_numeric_max, axis=0))
 
 else:
     st.warning(
