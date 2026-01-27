@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime
 
 import pandas as pd
@@ -10,14 +11,29 @@ CME_URL = "https://www.cmegroup.com/delivery_reports/Silver_stocks.xls"
 LOCAL_EXCEL = "silver_stocks_data.xls"
 HISTORY_FILE = "inventory_history.csv"
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+}
+
 
 def download_and_save():
     """Downloads report and updates local CSV history."""
-    try:
-        resp = requests.get(CME_URL, timeout=15)
-        resp.raise_for_status()
-        with open(LOCAL_EXCEL, "wb") as f:
-            f.write(resp.content)
+    # Try up to 3 times if the server is slow
+    for attempt in range(3):
+        try:
+            # Increased timeout to 30 seconds
+            resp = requests.get(CME_URL, headers=HEADERS, timeout=30)
+            resp.raise_for_status()
+
+            with open(LOCAL_EXCEL, "wb") as f:
+                f.write(resp.content)
+            return True, "Success! Data downloaded."
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(2)  # Wait 2 seconds before retrying
+                continue
+            return False, f"Download failed after 3 attempts: {e}"
 
         # Logic to record history for the chart
         totals, _ = load_data()
