@@ -132,17 +132,24 @@ if totals is not None:
                 status = "🔴 CRITICAL - Severe Short Squeeze Likely"
                 color = "red"
                 description = "Registered inventory is critically low. Short squeeze conditions are imminent or underway."
+                price_impact = "📈 Silver Price: WILL SURGE - Shorts forced to cover at any price. Massive volatility expected."
             elif reg_numeric < SQUEEZE_THRESHOLD:
                 status = "🟠 HIGH ALERT - Squeeze Conditions Building"
                 color = "orange"
                 description = "Registered inventory is dangerously low. Squeeze conditions are likely to develop."
+                price_impact = "📈 Silver Price: UPWARD PRESSURE - Supply crisis imminent. Expect rapid price increases."
             else:
-                status = "🟡 MODERATE - Watch Closely"
-                color = "yellow"
-                description = "Registered inventory is sufficient but being monitored."
+                status = "🟢 SAFE - Supply Stable"
+                color = "green"
+                description = "Registered inventory is healthy. Normal market conditions."
+                price_impact = "📉 Silver Price: DOWNWARD PRESSURE - Abundant supply prevents short squeeze. Price may decline or stagnate."
             
             col1, col2 = st.columns([2, 1])
             with col1:
+                st.markdown(f"### {status}")
+                st.info(description)
+                st.warning(price_impact)
+            with col2:
                 st.markdown(f"### {status}")
                 st.info(description)
             with col2:
