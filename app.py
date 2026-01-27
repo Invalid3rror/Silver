@@ -8,6 +8,8 @@ import requests
 from bs4 import BeautifulSoup
 import streamlit as st
 import yfinance as yf
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # --- CONFIG ---
 CME_URL = "https://www.cmegroup.com/delivery_reports/Silver_stocks.xls"
@@ -32,13 +34,35 @@ HIGH_OI_RATIO = 100  # OI/Registered > 100:1 = major squeeze risk
 HIGH_PREMIUM = 5.0  # Premium > $5 = physical shortage
 
 
+def _get_yf_session():
+    """Create a requests session with retries and a browser User-Agent for yfinance."""
+    session = requests.Session()
+    retry = Retry(
+        total=5,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["HEAD", "GET", "OPTIONS", "POST"]
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    })
+    return session
+
+
 @st.cache_data(ttl=3600)
 def fetch_open_interest():
     """Fetch COMEX Silver Open Interest using yfinance (SI=F)."""
     try:
-        # Add slight delay to avoid rate limits if running in parallel
+        # Use custom session to handle rate limits
+        session = _get_yf_session()
+        
+        # Add slight delay to avoid burst limits
         time.sleep(0.5)
-        ticker = yf.Ticker("SI=F")
+        
+        ticker = yf.Ticker("SI=F", session=session)
         # Force info fetch
         info = ticker.info
         oi = info.get('openInterest')
@@ -138,7 +162,8 @@ def fetch_sge_price():
                         # Need USDCNY
                         try:
                             usdcny = 7.25 # Default fallback
-                            ticker = yf.Ticker("CNY=X")
+                            session = _get_yf_session()
+                            ticker = yf.Ticker("CNY=X", session=session)
                             rate = ticker.fast_info.last_price
                             if rate and 6 < rate < 9:
                                 usdcny = rate
