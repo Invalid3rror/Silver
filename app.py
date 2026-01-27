@@ -50,6 +50,8 @@ def download_and_save():
                 else:
                     new_entry.to_csv(HISTORY_FILE, index=False)
                 return True, "Data updated successfully!"
+            else:
+                return False, "Could not parse totals from Excel file"
         except Exception as e:
             if attempt < 2:
                 time.sleep(2)  # Wait 2 seconds before retrying
