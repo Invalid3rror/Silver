@@ -105,6 +105,53 @@ def get_withdrawal_trend():
         return None, 0
 
 @st.cache_data(ttl=3600)
+def fetch_sge_price():
+    """Fetch Shanghai Gold Exchange (SHAG) Silver Benchmark."""
+    try:
+        url = "https://www.sge.com.cn/sjzx/everyShyjzj"
+        end = datetime.now()
+        start = end - timedelta(days=7) # Look back 1 week
+        
+        payload = {
+            "start": start.strftime("%Y-%m-%d"),
+            "end": end.strftime("%Y-%m-%d")
+        }
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "X-Requested-With": "XMLHttpRequest"
+        }
+        
+        resp = requests.post(url, data=payload, headers=headers, timeout=5)
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            rows = soup.find_all('tr')
+            for row in rows:
+                cols = row.find_all('td')
+                if len(cols) >= 3:
+                    contract = cols[1].get_text(strip=True)
+                    if "SHAG" in contract:
+                        price_rmb_kg = float(cols[2].get_text(strip=True))
+                        
+                        # Convert to USD/oz
+                        # 1 kg = 32.1507 oz
+                        # Need USDCNY
+                        try:
+                            usdcny = 7.25 # Default fallback
+                            ticker = yf.Ticker("CNY=X")
+                            rate = ticker.fast_info.last_price
+                            if rate and 6 < rate < 9:
+                                usdcny = rate
+                        except:
+                            pass
+                            
+                        price_usd_oz = (price_rmb_kg / 32.1507) / usdcny
+                        return price_usd_oz, price_rmb_kg
+        return None, None
+    except Exception:
+        return None, None
+
+@st.cache_data(ttl=3600)
 def fetch_slv_holdings():
     """Fetch SLV ETF holdings data - Ounces in Trust."""
     try:
@@ -713,6 +760,33 @@ if totals is not None and not totals.empty:
             with m_col4:
                  st.metric("⚖️ OI / Reg Ratio", "N/A")
 
+        # --- SGE / China Section ---
+        sge_col1, sge_col2, sge_col3 = st.columns(3)
+        
+        sge_usd = st.session_state.get('sge_price_usd')
+        sge_rmb = st.session_state.get('sge_price_rmb')
+        spot = st.session_state.get('spot_price')
+        
+        if sge_usd:
+            with sge_col1:
+                st.metric(
+                    "🇨🇳 SGE Benchmark",
+                    f"${sge_usd:.2f}/oz",
+                    help=f"Shanghai Gold Exchange Silver Benchmark (SHAG). Approx {sge_rmb} RMB/kg.",
+                )
+            
+            # SGE Premium
+            if spot:
+                diff = sge_usd - spot
+                pct = (diff / spot) * 100
+                with sge_col2:
+                    st.metric(
+                        "🇨🇳 vs 🇺🇸 Arbitrage",
+                        f"${diff:+.2f} ({pct:+.1f}%)",
+                        delta="Premium" if diff > 0 else "Discount",
+                        help="Price difference between Shanghai (SGE) and Global Spot. Positive = SGE is more expensive (implying strong Chinese demand)."
+                    )
+        
         # --- Explanations Expander ---
         with st.expander("ℹ️ Metric Explanations & Formulas"):
             st.markdown("""
@@ -978,6 +1052,7 @@ if not st.session_state['data_fetched']:
             future_spot = executor.submit(fetch_spot_price)
             future_global = executor.submit(fetch_global_silver)
             future_oi = executor.submit(fetch_open_interest)
+            future_sge = executor.submit(fetch_sge_price)
             
             # Wait for CME first (core data)
             if future_cme:
@@ -992,6 +1067,7 @@ if not st.session_state['data_fetched']:
             fetched_spot = future_spot.result()
             fetched_global, global_src = future_global.result()
             fetched_oi = future_oi.result()
+            fetched_sge_usd, fetched_sge_rmb = future_sge.result()
             
             st.write("📊 Processing Metrics...")
 
@@ -1002,6 +1078,9 @@ if not st.session_state['data_fetched']:
             st.session_state['global_price'] = fetched_global
             st.session_state['global_price_source'] = global_src
         if fetched_oi: st.session_state['open_interest'] = fetched_oi
+        if fetched_sge_usd:
+            st.session_state['sge_price_usd'] = fetched_sge_usd
+            st.session_state['sge_price_rmb'] = fetched_sge_rmb
         
         st.session_state['lbma_holdings'], _ = fetch_lbma_holdings()
         st.session_state['data_fetched'] = True
