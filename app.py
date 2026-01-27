@@ -683,14 +683,14 @@ if totals is not None and not totals.empty:
                 # Streamlit default: positive = green.
                 # If we use inverse: positive = red.
                 # If we have negative change (-1M), default is red. Inverse makes it green.
-                help="Silver available for delivery on COMEX. Trend shows change over 1 week.",
+                help="Silver available for delivery on COMEX. Trend shows change over 1 week.\n\nSource: CME Group Delivery Reports",
             )
         with col2:
             if slv_holdings > 0:
                 st.metric(
                     "🏦 SLV ETF Holdings",
                     f"{slv_holdings / 1_000_000:.1f}M oz",
-                    help="SPDR Silver Trust physical inventory",
+                    help="SPDR Silver Trust physical inventory.\n\nSource: iShares.com (Official Site)",
                 )
             else:
                 st.metric(
@@ -715,7 +715,7 @@ if totals is not None and not totals.empty:
                 st.metric(
                     "🇨🇳 SGE Benchmark",
                     f"${sge_usd:.2f}/oz",
-                    help=f"Shanghai Gold Exchange Silver Benchmark (SHAG). Approx {sge_rmb} RMB/kg.",
+                    help=f"Shanghai Gold Exchange Silver Benchmark (SHAG). Approx {sge_rmb} RMB/kg.\n\nSource: Shanghai Gold Exchange (sge.com.cn)",
                 )
         else:
             with m_col1:
@@ -731,7 +731,7 @@ if totals is not None and not totals.empty:
                     "🇨🇳 vs 🇺🇸 Arbitrage",
                     f"${diff:+.2f}",
                     delta=f"{pct:+.1f}%",
-                    help="Price difference between Shanghai (SGE) and Global Spot. Positive = SGE is more expensive.",
+                    help="Price difference between Shanghai (SGE) and Global Spot. Positive = SGE is more expensive.\n\nSource: Calculated (SGE - Spot)",
                 )
         else:
              with m_col2:
@@ -744,7 +744,7 @@ if totals is not None and not totals.empty:
             st.metric(
                 "📜 Open Interest",
                 oi_display,
-                help="COMEX Silver Futures Open Interest (Contracts)",
+                help="COMEX Silver Futures Open Interest (Contracts).\n\nSource: Yahoo Finance (Ticker: SI=F)",
             )
             
         # 4. OI / Registered Ratio
@@ -758,7 +758,8 @@ if totals is not None and not totals.empty:
                 f"It means that for every 1 ounce of physical silver available to be delivered, "
                 f"there are {ratio:.1f} ounces worth of paper claims trading against it.\n\n"
                 f"• Low Ratio (< 10x): Generally Normal\n"
-                f"• High Ratio (> 50x): Squeeze Risk"
+                f"• High Ratio (> 50x): Squeeze Risk\n\n"
+                f"Source: Yahoo Finance (OI) & CME Group (Inventory)"
             )
             
             with m_col4:
@@ -773,7 +774,7 @@ if totals is not None and not totals.empty:
              st.metric(
                 "🇬🇧 London Vaults (Approx)",
                  f"{st.session_state.get('lbma_holdings', 836_900_000) / 1_000_000:.1f}M oz",
-                 help="Total physical silver in London vaults. ~65% is owned by ETFs (like SLV)."
+                 help="Total physical silver in London vaults. ~65% is owned by ETFs (like SLV).\n\nSource: LBMA Data (Nov 2025)"
              )
         else:
              st.write("")
