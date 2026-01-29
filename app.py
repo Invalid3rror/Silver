@@ -56,22 +56,25 @@ def _get_yf_session():
 def fetch_open_interest():
     """Fetch COMEX Silver Open Interest using yfinance (SI=F)."""
     try:
-        # Use custom session to handle rate limits
-        session = _get_yf_session()
-        
-        # Add slight delay to avoid burst limits
-        time.sleep(0.5)
-        
-        ticker = yf.Ticker("SI=F", session=session)
-        # Force info fetch
+        import yfinance as yf
+        ticker = yf.Ticker("SI=F")
         info = ticker.info
-        oi = info.get('openInterest')
-        if oi:
-            return oi
-        # Fallback check
+        
+        if info and 'openInterest' in info:
+            oi = info.get('openInterest')
+            if oi and oi > 0:
+                return oi
+        
+        # Try alternative: get from history
+        hist = ticker.history(period="1d")
+        if not hist.empty and 'Open Interest' in hist.columns:
+            oi = hist['Open Interest'].iloc[-1]
+            if oi > 0:
+                return int(oi)
+                
         return None
     except Exception as e:
-        print(f"⚠️ Open Interest fetch error: {e}")
+        st.warning(f"Open Interest fetch error: {e}")
         return None
 
 @st.cache_data(ttl=3600)
@@ -212,23 +215,52 @@ def fetch_slv_holdings():
 
 @st.cache_data(ttl=3600)
 def fetch_spot_price():
-    """Fetch current silver spot price."""
+    """Fetch current silver spot price from multiple sources."""
+    # Try yfinance first (most reliable)
     try:
-        # Use metals-api or similar (free tier available)
-        # For now, use a fallback source
+        import yfinance as yf
+        ticker = yf.Ticker("SI=F")
+        hist = ticker.history(period="1d")
+        if not hist.empty and 'Close' in hist.columns:
+            price = float(hist['Close'].iloc[-1])
+            if 5 < price < 200:  # Sanity check
+                return price
+    except:
+        pass
+    
+    # Try goldprice.org API
+    try:
         url = "https://data-asg.goldprice.org/dbXRates/USD"
         resp = requests.get(url, headers=HEADERS, timeout=5)
         resp.raise_for_status()
         data = resp.json()
         
-        # Extract silver price (usually in data structure)
         if 'items' in data:
             for item in data['items']:
-                if 'xagPrice' in item:  # XAG = silver
-                    return float(item['xagPrice'])
-        return None
+                if 'xagPrice' in item:
+                    price = float(item['xagPrice'])
+                    if 5 < price < 200:
+                        return price
     except:
-        return None
+        pass
+    
+    # Try metals-api.com (free tier)
+    try:
+        # This requires API key in production, hardcoded fallback for now
+        url = "https://metals-api.com/api/latest?access_key=demo&base=USD&symbols=XAG"
+        resp = requests.get(url, timeout=5)
+        data = resp.json()
+        if data.get('success') and 'rates' in data:
+            xag_rate = data['rates'].get('XAG')
+            if xag_rate:
+                # XAG is in troy ounces, convert from USD per oz
+                price = 1 / xag_rate if xag_rate > 0 else None
+                if price and 5 < price < 200:
+                    return price
+    except:
+        pass
+    
+    return None
 
 @st.cache_data(ttl=3600)
 def fetch_global_silver():
