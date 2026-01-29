@@ -620,7 +620,7 @@ def refresh_market_data():
             futures = {
                 'spot': executor.submit(fetch_spot_price),
                 'oi': executor.submit(fetch_open_interest),
-                'sge': executor.submit(fetch_sge_premium),
+                'sge': executor.submit(fetch_sge_price),
                 'slv': executor.submit(fetch_slv_holdings)
             }
             
@@ -680,8 +680,6 @@ with st.sidebar:
             st.rerun()
     
     st.info("💡 Market data auto-refreshes on load. Click 'Refresh All' to force update.")
-                st.rerun()
-
     st.info("💡 Data auto-fetches on startup. CME updates daily around 4pm EST.")
     
     st.divider()
