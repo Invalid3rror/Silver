@@ -587,15 +587,65 @@ st.set_page_config(page_title="Silver Squeeze Tracker", page_icon="🥈")
 st.title("🥈 Silver Inventory Squeeze Tracker")
 
 # Auto-fetch on first load
-if 'data_fetched' not in st.session_state:
-    st.session_state['data_fetched'] = False
-
+# Initialize session state for cached data
 if 'data_fetched' not in st.session_state:
     st.session_state['data_fetched'] = False
 if 'slv_holdings' not in st.session_state:
     st.session_state['slv_holdings'] = 0
 if 'spot_price' not in st.session_state:
     st.session_state['spot_price'] = None
+if 'open_interest' not in st.session_state:
+    st.session_state['open_interest'] = None
+if 'sge_premium' not in st.session_state:
+    st.session_state['sge_premium'] = None
+if 'last_refresh' not in st.session_state:
+    st.session_state['last_refresh'] = None
+if 'refresh_in_progress' not in st.session_state:
+    st.session_state['refresh_in_progress'] = False
+
+# Background refresh function
+def refresh_market_data():
+    """Fetch all market data in background and update session state."""
+    if st.session_state.get('refresh_in_progress'):
+        return  # Already refreshing
+    
+    st.session_state['refresh_in_progress'] = True
+    
+    try:
+        from datetime import datetime
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        # Fetch all data in parallel
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {
+                'spot': executor.submit(fetch_spot_price),
+                'oi': executor.submit(fetch_open_interest),
+                'sge': executor.submit(fetch_sge_premium),
+                'slv': executor.submit(fetch_slv_holdings)
+            }
+            
+            for key, future in futures.items():
+                try:
+                    result = future.result(timeout=10)
+                    if key == 'spot':
+                        st.session_state['spot_price'] = result
+                    elif key == 'oi':
+                        st.session_state['open_interest'] = result
+                    elif key == 'sge':
+                        st.session_state['sge_premium'] = result
+                    elif key == 'slv':
+                        st.session_state['slv_holdings'] = result
+                except Exception as e:
+                    pass  # Keep old cached value
+        
+        st.session_state['last_refresh'] = datetime.now()
+        st.session_state['data_fetched'] = True
+    finally:
+        st.session_state['refresh_in_progress'] = False
+
+# Auto-refresh on first load or if data is stale
+if not st.session_state['data_fetched'] or st.session_state['last_refresh'] is None:
+    refresh_market_data()
 
 # Placeholder for status messages (renders at the top)
 status_placeholder = st.empty()
@@ -605,8 +655,11 @@ with st.sidebar:
     st.header("Settings")
     
     # Show last fetch time if available
-    if 'data_fetched' in st.session_state and st.session_state['data_fetched']:
-        st.success("✅ Data auto-loaded")
+    if st.session_state['last_refresh']:
+        from datetime import datetime
+        time_ago = datetime.now() - st.session_state['last_refresh']
+        mins = int(time_ago.total_seconds() / 60)
+        st.success(f"✅ Data loaded {mins}m ago")
     
     # Manual refresh buttons
     col1, col2 = st.columns(2)
@@ -621,30 +674,12 @@ with st.sidebar:
     
     with col2:
         if st.button("🌐 Refresh All"):
-            with st.spinner("Fetching..."):
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future_slv = executor.submit(fetch_slv_holdings)
-                    future_spot = executor.submit(fetch_spot_price)
-                    future_global = executor.submit(fetch_global_silver)
-                    
-                    fetched_slv = future_slv.result()
-                    fetched_spot = future_spot.result()
-                    fetched_global, global_src = future_global.result()
-                
-                if fetched_slv:
-                    st.session_state['slv_holdings'] = fetched_slv
-                if fetched_spot:
-                    st.session_state['spot_price'] = fetched_spot
-                if fetched_global:
-                    st.session_state['global_price'] = fetched_global
-                    st.session_state['global_price_source'] = global_src
-                
-                # Fetch new metrics
-                st.session_state['open_interest'] = fetch_open_interest()
-                st.session_state['lbma_holdings'], _ = fetch_lbma_holdings()
-                
-                st.success("✅ Refreshed!")
+            with st.spinner("Refreshing market data..."):
+                refresh_market_data()
+            st.success("✅ All data refreshed!")
+            st.rerun()
+    
+    st.info("💡 Market data auto-refreshes on load. Click 'Refresh All' to force update.")
                 st.rerun()
 
     st.info("💡 Data auto-fetches on startup. CME updates daily around 4pm EST.")
